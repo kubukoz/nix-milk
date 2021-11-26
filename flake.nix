@@ -6,7 +6,7 @@
   inputs.gitignore-source.inputs.nixpkgs.follows = "nixpkgs";
 
   outputs = { self, nixpkgs, flake-utils, sbt-derivation, ... }@inputs:
-    flake-utils.lib.eachDefaultSystem (
+    flake-utils.lib.eachSystem [ "x86_64-darwin" "x86_64-linux" ] (
       system: let
         set-jdk = final: prev: rec {
           jre = prev.graalvm11-ce;
