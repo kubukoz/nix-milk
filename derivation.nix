@@ -1,7 +1,7 @@
 { jre, sbt, gitignore-source, makeWrapper, stdenv }:
 
 let
-  mainClass = "com.kubukoz.nixmilk.Hello";
+  mainClass = "com.kubukoz.nixmilk.Main";
 in
 sbt.mkDerivation rec {
   pname = "sbt-nix-nix-milk";
