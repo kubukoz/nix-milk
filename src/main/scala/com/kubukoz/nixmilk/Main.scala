@@ -1,39 +1,64 @@
 package com.kubukoz.nixmilk
 
-import cats.effect.IOApp
+import cats.effect.Async
+import cats.effect.Concurrent
 import cats.effect.IO
-import org.http4s.blaze.server.BlazeServerBuilder
-import org.http4s.implicits._
-import org.http4s.HttpRoutes
-import cats.effect.MonadCancelThrow
-import fs2.compression.Compression
-import fs2.io.file.Files
-import fs2.compression.DeflateParams
-import org.http4s.dsl.Http4sDsl
-import cats.implicits._
+import cats.effect.IOApp
+import cats.effect.Sync
 import cats.effect.implicits._
-import cats.effect.kernel.Async
-import java.util.zip.ZipOutputStream
-import cats.effect.kernel.Sync
-import java.util.zip.ZipEntry
-import fs2.io.file.Path
+import cats.implicits._
+import io.circe.generic.auto._
+import io.circe.literal._
+import org.http4s.HttpRoutes
 import org.http4s.MediaType
+import org.http4s.Method._
+import org.http4s.Uri
+import org.http4s.blaze.client.BlazeClientBuilder
+import org.http4s.blaze.server.BlazeServerBuilder
+import org.http4s.client.Client
+import org.http4s.client.dsl.Http4sClientDsl
+import org.http4s.dsl.Http4sDsl
 import org.http4s.headers._
+import org.http4s.implicits._
+
 import java.io.OutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 object Main extends IOApp.Simple {
 
   val run: IO[Unit] =
-    BlazeServerBuilder[IO]
-      .bindHttp(8080, "0.0.0.0")
-      .withHttpApp(Routes.instance[IO].orNotFound)
+    BlazeClientBuilder[IO]
       .resource
-      .productL(IO.println("Started").toResource)
+      .flatMap { implicit c =>
+        BlazeServerBuilder[IO]
+          .bindHttp(8080, "0.0.0.0")
+          .withHttpApp(routes[IO].orNotFound)
+          .resource
+          .productL(IO.println("Started").toResource)
+      }
       .useForever
 
-}
+  def routes[F[_]: Async: Client]: HttpRoutes[F] = {
+    val dsl = new Http4sDsl[F] {}
+    import dsl._
 
-object Routes {
+    HttpRoutes.of { case GET -> Root / "vscode-extensions" / publisher / name / "latest.zip" =>
+      val getExt =
+        for {
+          v <- latestVersion[F](publisher, name)
+          sha256 <- nixPrefetchExtension(publisher, name, v)
+        } yield Extension(publisher, name, v, sha256)
+
+        getExt
+          .flatMap { ext =>
+            Ok(fs2.Stream.eval(src[F].map(replace(_, ext))).through(bytes[F]))
+          }
+          .map(_.withContentType(`Content-Type`(MediaType.application.zip)))
+    }
+  }
+
+  // files
 
   def src[F[_]: Async] =
     fs2
@@ -70,16 +95,42 @@ object Routes {
         }
     }
 
-  def instance[F[_]: Async]: HttpRoutes[F] = {
-    val dsl = new Http4sDsl[F] {}
-    import dsl._
-    HttpRoutes.of { case GET -> Root / "vscode-extensions" / publisher / name / "latest.zip" =>
-      val ext = Extension(publisher, name, "0.0.1", "test")
+  // nix
 
-      Ok(fs2.Stream.eval(src[F].map(replace(_, ext))).through(bytes[F]))
-        .map(_.withContentType(`Content-Type`(MediaType.application.zip)))
-    }
+  def nixPrefetchExtension[F[_]: Sync](
+    publisher: String,
+    name: String,
+    version: String,
+  ): F[String] = Sync[F].blocking {
+    import sys.process._
+
+    val url =
+      s"https://$publisher.gallery.vsassets.io/_apis/public/gallery/publisher/$publisher/extension/$name/$version/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage"
+
+    s"nix-prefetch-url $url".!!.trim
   }
+
+  // vscode
+
+  def latestVersion[F[_]: Concurrent](
+    publisher: String,
+    name: String,
+  )(
+    implicit c: Client[F]
+  ) = {
+    val dsl = new Http4sClientDsl[F] {}
+    import dsl._
+    import org.http4s.circe.CirceEntityCodec._
+
+    val url = Uri.unsafeFromString(
+      s"https://$publisher.gallery.vsassets.io/_apis/public/gallery/publisher/$publisher/extension/$name/latest/assetbyname/Microsoft.VisualStudio.Code.Manifest"
+    )
+
+    final case class Manifest(version: String)
+    c.expect[Manifest](GET(url)).map(_.version)
+  }
+
+  // util
 
   def replace(template: String, ext: Extension): String = template
     .replace("TEMPLATE_NAME", ext.name)

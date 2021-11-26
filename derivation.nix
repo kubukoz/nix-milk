@@ -8,8 +8,8 @@ sbt.mkDerivation rec {
   version = "0.1.0";
   depsSha256 =
     if stdenv.isDarwin
-    then "sha256-iMNRM0zH/Yt3mE5ZOZJwsaZbPowIL0pWzoThUbiUf6c="
-    else "sha256-2pQFwmP7lqF7fAWUGbvXfcxgMOrIchdT5TkhdE24yOg=";
+    then "sha256-qk+fPbxdiRSjoE3KoXZ8eN958QoTXmHj2ooOn6vuPdg="
+    else "sha256-3Bh0mnJ6SrnOjmeHmSMLKLqE1uePK0eKdAFTuK8H9UM=";
 
   depsWarmupCommand = ''
     sbt compile
