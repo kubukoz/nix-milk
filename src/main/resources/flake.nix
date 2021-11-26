@@ -3,10 +3,10 @@
     {
       overlay = final: prev: {
         vscode-extensions = prev.vscode-utils.extensionFromVscodeMarketplace {
-          name = "???";
-          publisher = "???";
-          version = "???";
-          sha256 = "";
+          name = "TEMPLATE_NAME";
+          publisher = "TEMPLATE_PUBLISHER";
+          version = "TEMPLATE_VERSION";
+          sha256 = "TEMPLATE_SHA256";
         };
       };
     };
