@@ -52,5 +52,6 @@ A complete example of usage:
 ## Development
 
 - `nix develop`, or use the normal Scala+sbt workflow
+- Run the app with `sbt run`
 - Test your changes with `nix flake check`
 - Binary caches may be available with `nix run nixpkgs#cachix use kubukoz`
