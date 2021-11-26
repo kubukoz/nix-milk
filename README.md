@@ -12,8 +12,10 @@ and the output could be generated dynamically based on the exact URL.
 In your `flake.nix`, add the desired package as an input, e.g.:
 
 ```nix
-# This isn't deployed yet, DEPLOYED_SERVICE_HOST is wherever you ca host the app
-inputs.vetur.url = "http://DEPLOYED_SERVICE_HOST/vscode-extensions/octref/vetur/latest.zip";
+{
+  # This isn't deployed yet, DEPLOYED_SERVICE_HOST is wherever you ca host the app
+  inputs.vetur.url = "http://DEPLOYED_SERVICE_HOST/vscode-extensions/octref/vetur/latest.zip";
+}
 ```
 
 The server will generate a zipfile with a `flake.nix` that contains an overlay that adds the package to `pkgs.vscode-extensions`, in the style of the default ones.
