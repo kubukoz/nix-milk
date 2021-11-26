@@ -75,19 +75,19 @@ object Main extends IOApp {
       .compile
       .string
 
-  def bytes[F[_]: Async]: fs2.Pipe[F, String, Byte] =
-    src => {
-      def mkZipSink(os: OutputStream) = fs2
-        .io
-        .writeOutputStream {
-          Sync[F]
-            .delay(new ZipOutputStream(os))
-            .flatTap { zos =>
-              Sync[F].delay(zos.putNextEntry(new ZipEntry("result/flake.nix")))
-            }
-            .widen[OutputStream]
-        }
+  def bytes[F[_]: Async]: fs2.Pipe[F, String, Byte] = {
+    def mkZipSink(os: OutputStream) = fs2
+      .io
+      .writeOutputStream {
+        Sync[F]
+          .delay(new ZipOutputStream(os))
+          .flatTap { zos =>
+            Sync[F].delay(zos.putNextEntry(new ZipEntry("result/flake.nix")))
+          }
+          .widen[OutputStream]
+      }
 
+    src =>
       fs2
         .io
         .readOutputStream[F](4096) { os =>
@@ -97,7 +97,7 @@ object Main extends IOApp {
             .compile
             .drain
         }
-    }
+  }
 
   // nix
 

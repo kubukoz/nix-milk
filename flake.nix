@@ -8,9 +8,13 @@
   outputs = { self, nixpkgs, flake-utils, sbt-derivation, ... }@inputs:
     flake-utils.lib.eachDefaultSystem (
       system: let
+        set-jdk = final: prev: rec {
+          jre = prev.graalvm11-ce;
+          jdk = jre;
+        };
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [ sbt-derivation.overlay ];
+          overlays = [ set-jdk sbt-derivation.overlay ];
         };
       in
         {
