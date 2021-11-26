@@ -2,6 +2,7 @@ package com.kubukoz.nixmilk
 
 import cats.effect.Async
 import cats.effect.Concurrent
+import cats.effect.ExitCode
 import cats.effect.IO
 import cats.effect.IOApp
 import cats.effect.Sync
@@ -25,19 +26,22 @@ import java.io.OutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-object Main extends IOApp.Simple {
+object Main extends IOApp {
 
-  val run: IO[Unit] =
-    BlazeClientBuilder[IO]
-      .resource
-      .flatMap { implicit c =>
-        BlazeServerBuilder[IO]
-          .bindHttp(8080, "0.0.0.0")
-          .withHttpApp(routes[IO].orNotFound)
-          .resource
-          .productL(IO.println("Started").toResource)
-      }
-      .useForever
+  def run(args: List[String]): IO[ExitCode] =
+    if (args.headOption.contains("test"))
+      IO.println("pong").as(ExitCode.Success)
+    else
+      BlazeClientBuilder[IO]
+        .resource
+        .flatMap { implicit c =>
+          BlazeServerBuilder[IO]
+            .bindHttp(8080, "0.0.0.0")
+            .withHttpApp(routes[IO].orNotFound)
+            .resource
+            .productL(IO.println("Started").toResource)
+        }
+        .useForever
 
   def routes[F[_]: Async: Client]: HttpRoutes[F] = {
     val dsl = new Http4sDsl[F] {}

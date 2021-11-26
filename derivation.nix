@@ -4,7 +4,7 @@ let
   mainClass = "com.kubukoz.nixmilk.Main";
 in
 sbt.mkDerivation rec {
-  pname = "sbt-nix-nix-milk";
+  pname = "nix-milk";
   version = "0.1.0";
   depsSha256 =
     if stdenv.isDarwin

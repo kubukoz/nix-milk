@@ -15,6 +15,10 @@
       in
         {
           defaultPackage = pkgs.callPackage ./derivation.nix { inherit (inputs) gitignore-source; };
+          checks = {
+            test-app =
+              pkgs.runCommandNoCC "tests" { buildInputs = [ (pkgs.callPackage ./derivation.nix { inherit (inputs) gitignore-source; }) ]; } "nix-milk test > $out";
+          };
         }
     );
 }
