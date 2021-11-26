@@ -1,4 +1,4 @@
-{ jre, sbt, gitignore-source, makeWrapper, stdenv }:
+{ jre, sbt, gitignore-source, makeWrapper, stdenv, lib }:
 
 let
   mainClass = "com.kubukoz.nixmilk.Main";
@@ -17,7 +17,13 @@ sbt.mkDerivation rec {
 
   nativeBuildInputs = [ makeWrapper ];
 
-  src = gitignore-source.lib.gitignoreSource ./.;
+  src = lib.sourceByRegex (gitignore-source.lib.gitignoreSource ./.) [
+    "^project\$"
+    "^project/.*\$"
+    "^src\$"
+    "^src/.*\$"
+    "^build.sbt\$"
+  ];
 
   buildPhase = ''
     sbt stage
