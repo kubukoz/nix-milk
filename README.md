@@ -13,8 +13,7 @@ In your `flake.nix`, add the desired package as an input, e.g.:
 
 ```nix
 {
-  # This isn't deployed yet, DEPLOYED_SERVICE_HOST is wherever you ca host the app
-  inputs.vetur.url = "http://DEPLOYED_SERVICE_HOST/vscode-extensions/octref/vetur/latest.zip";
+  inputs.vetur.url = "https://nix-milk.kubukoz.com/vscode-extensions/octref/vetur/latest.zip";
 }
 ```
 
@@ -27,7 +26,7 @@ A complete example of usage:
 
 ```nix
 {
-  inputs.vetur.url = "http://$DEPLOYED_SERVICE_HOST/vscode-extensions/octref/vetur/latest.zip";
+  inputs.vetur.url = "https://nix-milk.kubukoz.com/vscode-extensions/octref/vetur/latest.zip";
   outputs = { self, nixpkgs, vetur }: let
     pkgs = import nixpkgs {
       system = "x86_64-darwin";
@@ -43,7 +42,7 @@ A complete example of usage:
 
 ## Possible roadmap
 
-- [ ] Hosting this somewhere in the public Internet
+- [x] Hosting this somewhere in the public Internet
 - [x] Latest version of a VS Code package
 - [ ] Caching shas for immutable URLs (e.g. a specific version of a VS code package)
 - [ ] Specific version of a VS Code package
