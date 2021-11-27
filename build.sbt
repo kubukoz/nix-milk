@@ -17,6 +17,7 @@ lazy val root = (project in file("."))
       "io.circe" %% "circe-parser" % "0.14.1",
       "io.circe" %% "circe-generic" % "0.14.1",
       "ch.qos.logback" % "logback-classic" % "1.2.7",
+      "is.cir" %% "ciris" % "2.2.1",
       compilerPlugin("org.polyvariant" % "better-tostring" % "0.3.11" cross CrossVersion.full),
     ),
   )

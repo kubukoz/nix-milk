@@ -28,20 +28,30 @@ import java.util.zip.ZipOutputStream
 
 object Main extends IOApp {
 
+  final case class Config(
+    port: Int
+  )
+
+  val configR = {
+    import ciris._
+    env("HTTP_PORT").as[Int].default(8080).map(Config(_))
+  }.resource[IO]
+
   def run(args: List[String]): IO[ExitCode] =
     if (args.headOption.contains("test"))
       IO.println("pong").as(ExitCode.Success)
     else
-      BlazeClientBuilder[IO]
-        .resource
-        .flatMap { implicit c =>
-          BlazeServerBuilder[IO]
-            .bindHttp(8080, "0.0.0.0")
-            .withHttpApp(routes[IO].orNotFound)
-            .resource
-            .productL(IO.println("Started").toResource)
-        }
-        .useForever
+      configR.flatMap { cfg =>
+        BlazeClientBuilder[IO]
+          .resource
+          .flatMap { implicit c =>
+            BlazeServerBuilder[IO]
+              .bindHttp(cfg.port, "0.0.0.0")
+              .withHttpApp(routes[IO].orNotFound)
+              .resource
+              .productL(IO.println("Started").toResource)
+          }
+      }.useForever
 
   def routes[F[_]: Async: Client]: HttpRoutes[F] = {
     val dsl = new Http4sDsl[F] {}
