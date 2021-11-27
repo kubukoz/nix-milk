@@ -1,8 +1,5 @@
-{ jre, sbt, gitignore-source, makeWrapper, stdenv, lib }:
+{ jre, sbt, gitignore-source, makeWrapper, stdenv, lib, nix }:
 
-let
-  mainClass = "com.kubukoz.nixmilk.Main";
-in
 sbt.mkDerivation rec {
   pname = "nix-milk";
   version = "0.1.0";
@@ -30,9 +27,11 @@ sbt.mkDerivation rec {
   '';
 
   installPhase = ''
-    mkdir -p $out/{bin,lib}
-    cp -ar target/universal/stage/lib $out/lib/${pname}
-    makeWrapper ${jre}/bin/java $out/bin/${pname} \
-      --add-flags "-cp '$out/lib/${pname}/*' '${mainClass}'"
+    mkdir -p $out/bin
+    cp -r target/universal/stage/lib $out
+    cp target/universal/stage/bin/root $out/bin/${pname}
+    wrapProgram $out/bin/${pname} \
+      --prefix PATH : "${nix}/bin" \
+      --set JAVA_HOME="${jre}"
   '';
 }
