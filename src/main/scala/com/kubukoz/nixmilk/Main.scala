@@ -57,18 +57,24 @@ object Main extends IOApp {
     val dsl = new Http4sDsl[F] {}
     import dsl._
 
-    HttpRoutes.of { case GET -> Root / "vscode-extensions" / publisher / name / "latest.zip" =>
-      val getExt =
-        for {
-          v <- latestVersion[F](publisher, name)
-          sha256 <- nixPrefetchExtension(publisher, name, v)
-        } yield Extension(publisher, name, v, sha256)
+    HttpRoutes.of {
+      case GET -> Root =>
+        Ok(
+          """<h1>Welcome to nix-milk! Check <a href="https://github.com/kubukoz/nix-milk">README</a> for instructions.</h1>"""
+        ).map(_.withContentType(`Content-Type`(MediaType.text.html)))
 
-        getExt
-          .flatMap { ext =>
-            Ok(fs2.Stream.eval(src[F].map(replace(_, ext))).through(bytes[F]))
-          }
-          .map(_.withContentType(`Content-Type`(MediaType.application.zip)))
+      case GET -> Root / "vscode-extensions" / publisher / name / "latest.zip" =>
+        val getExt =
+          for {
+            v <- latestVersion[F](publisher, name)
+            sha256 <- nixPrefetchExtension(publisher, name, v)
+          } yield Extension(publisher, name, v, sha256)
+
+          getExt
+            .flatMap { ext =>
+              Ok(fs2.Stream.eval(src[F].map(replace(_, ext))).through(bytes[F]))
+            }
+            .map(_.withContentType(`Content-Type`(MediaType.application.zip)))
     }
   }
 
