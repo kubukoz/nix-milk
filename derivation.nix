@@ -31,7 +31,6 @@ sbt.mkDerivation rec {
     cp -r target/universal/stage/lib $out
     cp target/universal/stage/bin/root $out/bin/${pname}
     wrapProgram $out/bin/${pname} \
-      --prefix PATH : "${nix}/bin" \
-      --set JAVA_HOME="${jre}"
+      --prefix PATH : "${nix}/bin:${jre}/bin"
   '';
 }
