@@ -2,6 +2,11 @@
 
 Add it to your flakes.
 
+## Experimental
+
+Warning: this project is experimental, use at your own risk. The hosted service is currently available at http://nix-milk.kubukoz.com,
+but I may stop supporting it at any time if I consider it unworthy of the maintenance cost.
+
 ## What is this?
 
 This is a realization of an experiment to bring more inputs to Nix Flakes. The idea is that Nix accepts any URL that ends with the right extension (e.g. `.zip` or `.tar.gz`),
