@@ -3,7 +3,7 @@
 sbt.mkDerivation rec {
   pname = "nix-milk";
   version = "0.1.0";
-  depsSha256 = "sha256-D8joz61cXiw1LSru5x+rhai5lBk3dl2ifsQ6KdX8exw=";
+  depsSha256 = "sha256-cUJefDiT0BuPiM2Hw68PxwcawZ0OK8tUU40y3KumqXA=";
 
   depsWarmupCommand = ''
     sbt compile

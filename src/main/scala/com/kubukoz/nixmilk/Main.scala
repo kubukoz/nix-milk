@@ -1,5 +1,7 @@
 package com.kubukoz.nixmilk
 
+import cats.Monad
+import cats.Show
 import cats.effect.Async
 import cats.effect.Concurrent
 import cats.effect.ExitCode
@@ -7,7 +9,17 @@ import cats.effect.IO
 import cats.effect.IOApp
 import cats.effect.Sync
 import cats.effect.implicits._
+import cats.effect.kernel.Resource
 import cats.implicits._
+import dev.profunktor.redis4cats.Redis
+import dev.profunktor.redis4cats.RedisCommands
+import dev.profunktor.redis4cats.algebra.Getter
+import dev.profunktor.redis4cats.algebra.Setter
+import dev.profunktor.redis4cats.connection.RedisClient
+import dev.profunktor.redis4cats.data.RedisCodec
+import dev.profunktor.redis4cats.effect.Log
+import dev.profunktor.redis4cats.effect.MkRedis
+import dev.profunktor.redis4cats.log4cats.log4CatsInstance
 import io.circe.generic.auto._
 import org.http4s.HttpRoutes
 import org.http4s.MediaType
@@ -20,12 +32,18 @@ import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers._
 import org.http4s.implicits._
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import java.io.OutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import scala.concurrent.duration.FiniteDuration
+
+import concurrent.duration._
 
 object Main extends IOApp:
+  given Logger[IO] = Slf4jLogger.getLogger[IO]
 
   def run(args: List[String]): IO[ExitCode] =
     if (args.headOption.contains("test"))
@@ -34,29 +52,63 @@ object Main extends IOApp:
       configR[IO].flatMap { cfg =>
         BlazeClientBuilder[IO]
           .resource
-          .flatMap { implicit c =>
-            BlazeServerBuilder[IO]
-              .bindHttp(cfg.port, "0.0.0.0")
-              .withHttpApp(routes[IO].orNotFound)
-              .resource
-              .flatTap { server =>
-                IO.println(s"Started nix-milk at ${server.address}").toResource
-              }
+          .flatMap { client =>
+            given Client[IO] = client
+
+            redis[IO].flatMap { redis =>
+              given RedisCommands[IO, String, String] = redis
+
+              BlazeServerBuilder[IO]
+                .bindHttp(cfg.port, "0.0.0.0")
+                .withHttpApp(routes[IO](cfg).orNotFound)
+                .resource
+                .flatTap { server =>
+                  IO.println(s"Started nix-milk at ${server.address}").toResource
+                }
+            }
           }
       }.useForever
 
 end Main
 
 final case class Config(
-  port: Int
+  port: Int,
+  shaCacheTTL: FiniteDuration,
 )
 
-def configR[F[_]: Async] = {
-  import ciris._
-  env("HTTP_PORT").as[Int].default(8080).map(Config(_))
-}.resource[F]
+def redis[F[_]: Async: Log]: Resource[F, RedisCommands[F, String, String]] = RedisClient[F]
+  .from("redis://localhost")
+  .flatMap(Redis[F].fromClient(_, RedisCodec.Utf8))
 
-def routes[F[_]: Async: Client]: HttpRoutes[F] =
+def configR[F[_]: Async: Logger] = {
+  import ciris._
+  (env("HTTP_PORT").as[Int].default(8080), env("SHA_CACHE_TTL").as[FiniteDuration].default(1.day))
+    .mapN(Config.apply)
+}.resource[F].evalTap(cfg => Logger[F].info(s"Loaded configuration $cfg"))
+
+def getOrFetchCaching[F[_]: Monad: Logger, K: Show, V](
+  key: K,
+  ttl: FiniteDuration,
+)(
+  fetch: F[V]
+)(
+  using
+  getter: Getter[F, K, V],
+  setter: Setter[F, K, V],
+): F[V] = getter.get(key).flatMap {
+  case Some(v) => v.pure[F]
+  case None =>
+    Logger[F].info(s"Didn't find $key in cache, fetching") *>
+      fetch.flatTap { result =>
+        setter.setEx(key, result, ttl)
+      }
+}
+
+def routes[F[_]: Async: Client: Logger](
+  cfg: Config
+)(
+  using redis: RedisCommands[F, String, String]
+): HttpRoutes[F] =
   val dsl = new Http4sDsl[F] {}
   import dsl._
 
@@ -70,7 +122,10 @@ def routes[F[_]: Async: Client]: HttpRoutes[F] =
       val getExt =
         for {
           v <- latestVersion[F](publisher, name)
-          sha256 <- nixPrefetchExtension(publisher, name, v)
+          sha256 <-
+            getOrFetchCaching(s"$publisher.$name.$v.sha256", cfg.shaCacheTTL)(
+              nixPrefetchExtension(publisher, name, v)
+            )
         } yield Extension(publisher, name, v, sha256)
 
       getExt
@@ -82,7 +137,7 @@ def routes[F[_]: Async: Client]: HttpRoutes[F] =
 
 // files
 
-def src[F[_]: Async] =
+def src[F[_]: Async]: F[String] =
   fs2
     .io
     .readInputStream(
@@ -137,7 +192,7 @@ def latestVersion[F[_]: Concurrent](
   name: String,
 )(
   implicit c: Client[F]
-) =
+): F[String] =
   val dsl = new Http4sClientDsl[F] {}
 
   import dsl._

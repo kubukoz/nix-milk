@@ -50,7 +50,7 @@ A complete example of usage:
 
 - [x] Hosting this somewhere in the public Internet
 - [x] Latest version of a VS Code package
-- [ ] Caching shas for immutable URLs (e.g. a specific version of a VS code package)
+- [x] Caching shas for immutable URLs (e.g. a specific version of a VS code package)
 - [ ] Specific version of a VS Code package
 - [ ] Proxy to a limited number of "mostly immutable" URLs, e.g. GitHub releases with a size limit
 
