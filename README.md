@@ -26,6 +26,7 @@ A complete example of usage:
 
 ```nix
 {
+  inputs.nixpkgs.url = "github:nixos/nixpkgs";
   inputs.vetur.url = "https://nix-milk.kubukoz.com/vscode-extensions/octref/vetur/latest.zip";
   outputs = { self, nixpkgs, vetur }: let
     pkgs = import nixpkgs {
