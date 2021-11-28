@@ -9,7 +9,6 @@ import cats.effect.Sync
 import cats.effect.implicits._
 import cats.implicits._
 import io.circe.generic.auto._
-import io.circe.literal._
 import org.http4s.HttpRoutes
 import org.http4s.MediaType
 import org.http4s.Method._
@@ -26,22 +25,13 @@ import java.io.OutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-object Main extends IOApp {
-
-  final case class Config(
-    port: Int
-  )
-
-  val configR = {
-    import ciris._
-    env("HTTP_PORT").as[Int].default(8080).map(Config(_))
-  }.resource[IO]
+object Main extends IOApp:
 
   def run(args: List[String]): IO[ExitCode] =
     if (args.headOption.contains("test"))
       IO.println("pong").as(ExitCode.Success)
     else
-      configR.flatMap { cfg =>
+      configR[IO].flatMap { cfg =>
         BlazeClientBuilder[IO]
           .resource
           .flatMap { implicit c =>
@@ -49,115 +39,123 @@ object Main extends IOApp {
               .bindHttp(cfg.port, "0.0.0.0")
               .withHttpApp(routes[IO].orNotFound)
               .resource
-              .productL(IO.println("Started").toResource)
+              .flatTap { server =>
+                IO.println(s"Started nix-milk at ${server.address}").toResource
+              }
           }
       }.useForever
 
-  def routes[F[_]: Async: Client]: HttpRoutes[F] = {
-    val dsl = new Http4sDsl[F] {}
-    import dsl._
+end Main
 
-    HttpRoutes.of {
-      case GET -> Root =>
-        Ok(
-          """<h1>Welcome to nix-milk! Check <a href="https://github.com/kubukoz/nix-milk">README</a> for instructions.</h1>"""
-        ).map(_.withContentType(`Content-Type`(MediaType.text.html)))
+final case class Config(
+  port: Int
+)
 
-      case GET -> Root / "vscode-extensions" / publisher / name / "latest.zip" =>
-        val getExt =
-          for {
-            v <- latestVersion[F](publisher, name)
-            sha256 <- nixPrefetchExtension(publisher, name, v)
-          } yield Extension(publisher, name, v, sha256)
+def configR[F[_]: Async] = {
+  import ciris._
+  env("HTTP_PORT").as[Int].default(8080).map(Config(_))
+}.resource[F]
 
-          getExt
-            .flatMap { ext =>
-              Ok(fs2.Stream.eval(src[F].map(replace(_, ext))).through(bytes[F]))
-            }
-            .map(_.withContentType(`Content-Type`(MediaType.application.zip)))
-    }
+def routes[F[_]: Async: Client]: HttpRoutes[F] =
+  val dsl = new Http4sDsl[F] {}
+  import dsl._
+
+  HttpRoutes.of {
+    case GET -> Root =>
+      Ok(
+        """<h1>Welcome to nix-milk! Check <a href="https://github.com/kubukoz/nix-milk">README</a> for instructions.</h1>"""
+      ).map(_.withContentType(`Content-Type`(MediaType.text.html)))
+
+    case GET -> Root / "vscode-extensions" / publisher / name / "latest.zip" =>
+      val getExt =
+        for {
+          v <- latestVersion[F](publisher, name)
+          sha256 <- nixPrefetchExtension(publisher, name, v)
+        } yield Extension(publisher, name, v, sha256)
+
+      getExt
+        .flatMap { ext =>
+          Ok(fs2.Stream.eval(src[F].map(replace(_, ext))).through(bytes[F]))
+        }
+        .map(_.withContentType(`Content-Type`(MediaType.application.zip)))
   }
 
-  // files
+// files
 
-  def src[F[_]: Async] =
+def src[F[_]: Async] =
+  fs2
+    .io
+    .readInputStream(
+      Sync[F].delay(this.getClass.getResourceAsStream("/flake.nix")),
+      4096,
+    )
+    .through(fs2.text.utf8.decode[F])
+    .compile
+    .string
+
+def bytes[F[_]: Async]: fs2.Pipe[F, String, Byte] =
+  def mkZipSink(os: OutputStream) = fs2
+    .io
+    .writeOutputStream {
+      Sync[F]
+        .delay(new ZipOutputStream(os))
+        .flatTap { zos =>
+          Sync[F].delay(zos.putNextEntry(new ZipEntry("result/flake.nix")))
+        }
+        .widen[OutputStream]
+    }
+
+  src =>
     fs2
       .io
-      .readInputStream(
-        Sync[F].delay(getClass.getResourceAsStream("/flake.nix")),
-        4096,
-      )
-      .through(fs2.text.utf8.decode[F])
-      .compile
-      .string
-
-  def bytes[F[_]: Async]: fs2.Pipe[F, String, Byte] = {
-    def mkZipSink(os: OutputStream) = fs2
-      .io
-      .writeOutputStream {
-        Sync[F]
-          .delay(new ZipOutputStream(os))
-          .flatTap { zos =>
-            Sync[F].delay(zos.putNextEntry(new ZipEntry("result/flake.nix")))
-          }
-          .widen[OutputStream]
+      .readOutputStream[F](4096) { os =>
+        src
+          .through(fs2.text.utf8.encode[F])
+          .through(mkZipSink(os))
+          .compile
+          .drain
       }
 
-    src =>
-      fs2
-        .io
-        .readOutputStream[F](4096) { os =>
-          src
-            .through(fs2.text.utf8.encode[F])
-            .through(mkZipSink(os))
-            .compile
-            .drain
-        }
-  }
+// nix
 
-  // nix
+def nixPrefetchExtension[F[_]: Sync](
+  publisher: String,
+  name: String,
+  version: String,
+): F[String] =
+  import sys.process._
 
-  def nixPrefetchExtension[F[_]: Sync](
-    publisher: String,
-    name: String,
-    version: String,
-  ): F[String] = Sync[F].blocking {
-    import sys.process._
+  val url =
+    s"https://$publisher.gallery.vsassets.io/_apis/public/gallery/publisher/$publisher/extension/$name/$version/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage"
 
-    val url =
-      s"https://$publisher.gallery.vsassets.io/_apis/public/gallery/publisher/$publisher/extension/$name/$version/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage"
+  Sync[F].blocking(s"nix-prefetch-url $url".!!.trim)
 
-    s"nix-prefetch-url $url".!!.trim
-  }
+// vscode
 
-  // vscode
+def latestVersion[F[_]: Concurrent](
+  publisher: String,
+  name: String,
+)(
+  implicit c: Client[F]
+) =
+  val dsl = new Http4sClientDsl[F] {}
 
-  def latestVersion[F[_]: Concurrent](
-    publisher: String,
-    name: String,
-  )(
-    implicit c: Client[F]
-  ) = {
-    val dsl = new Http4sClientDsl[F] {}
-    import dsl._
-    import org.http4s.circe.CirceEntityCodec._
+  import dsl._
+  import org.http4s.circe.CirceEntityCodec._
 
-    val url = Uri.unsafeFromString(
-      s"https://$publisher.gallery.vsassets.io/_apis/public/gallery/publisher/$publisher/extension/$name/latest/assetbyname/Microsoft.VisualStudio.Code.Manifest"
-    )
+  val url = Uri.unsafeFromString(
+    s"https://$publisher.gallery.vsassets.io/_apis/public/gallery/publisher/$publisher/extension/$name/latest/assetbyname/Microsoft.VisualStudio.Code.Manifest"
+  )
 
-    final case class Manifest(version: String)
-    c.expect[Manifest](GET(url)).map(_.version)
-  }
+  final case class Manifest(version: String)
+  c.expect[Manifest](GET(url)).map(_.version)
 
-  // util
+// util
 
-  def replace(template: String, ext: Extension): String = template
-    .replace("TEMPLATE_NAME", ext.name)
-    .replace("TEMPLATE_PUBLISHER", ext.publisher)
-    .replace("TEMPLATE_VERSION", ext.version)
-    .replace("TEMPLATE_SHA256", ext.sha256)
-
-}
+def replace(template: String, ext: Extension): String = template
+  .replace("TEMPLATE_NAME", ext.name)
+  .replace("TEMPLATE_PUBLISHER", ext.publisher)
+  .replace("TEMPLATE_VERSION", ext.version)
+  .replace("TEMPLATE_SHA256", ext.sha256)
 
 final case class Extension(publisher: String, name: String, version: String, sha256: String)

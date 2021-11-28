@@ -1,6 +1,6 @@
 import Dependencies._
 
-ThisBuild / scalaVersion := "2.13.7"
+ThisBuild / scalaVersion := "3.1.0"
 
 lazy val root = (project in file("."))
   .enablePlugins(JavaAppPackaging)
@@ -13,11 +13,10 @@ lazy val root = (project in file("."))
       "org.http4s" %% "http4s-blaze-client" % "0.23.6",
       "org.http4s" %% "http4s-circe" % "0.23.6",
       "org.http4s" %% "http4s-dsl" % "0.23.6",
-      "io.circe" %% "circe-literal" % "0.14.1",
-      "io.circe" %% "circe-parser" % "0.14.1",
       "io.circe" %% "circe-generic" % "0.14.1",
       "ch.qos.logback" % "logback-classic" % "1.2.7",
       "is.cir" %% "ciris" % "2.2.1",
       compilerPlugin("org.polyvariant" % "better-tostring" % "0.3.11" cross CrossVersion.full),
     ),
+    Compile / doc / sources := Nil,
   )
