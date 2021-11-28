@@ -73,7 +73,7 @@ end Main
 
 final case class Config(
   port: Int,
-  shaCacheTTL: FiniteDuration,
+  shaCacheTTL: Option[FiniteDuration],
 )
 
 def redis[F[_]: Async: Log]: Resource[F, RedisCommands[F, String, String]] = RedisClient[F]
@@ -82,13 +82,13 @@ def redis[F[_]: Async: Log]: Resource[F, RedisCommands[F, String, String]] = Red
 
 def configR[F[_]: Async: Logger] = {
   import ciris._
-  (env("HTTP_PORT").as[Int].default(8080), env("SHA_CACHE_TTL").as[FiniteDuration].default(1.day))
+  (env("HTTP_PORT").as[Int].default(8080), env("SHA_CACHE_TTL").as[FiniteDuration].option)
     .mapN(Config.apply)
 }.resource[F].evalTap(cfg => Logger[F].info(s"Loaded configuration $cfg"))
 
 def getOrFetchCaching[F[_]: Monad: Logger, K: Show, V](
   key: K,
-  ttl: FiniteDuration,
+  ttl: Option[FiniteDuration],
 )(
   fetch: F[V]
 )(
@@ -100,7 +100,7 @@ def getOrFetchCaching[F[_]: Monad: Logger, K: Show, V](
   case None =>
     Logger[F].info(s"Didn't find $key in cache, fetching") *>
       fetch.flatTap { result =>
-        setter.setEx(key, result, ttl)
+        ttl.fold(setter.set(key, result))(setter.setEx(key, result, _))
       }
 }
 
