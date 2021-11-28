@@ -1,4 +1,4 @@
-{ jre, sbt, gitignore-source, makeWrapper, stdenv, lib, nix, coreutils }:
+{ jre, sbt, gitignore-source, makeWrapper, stdenv, lib, nix, coreutils, gawk }:
 
 sbt.mkDerivation rec {
   pname = "nix-milk";
@@ -31,6 +31,6 @@ sbt.mkDerivation rec {
     cp -r target/universal/stage/lib $out
     cp target/universal/stage/bin/root $out/bin/${pname}
     wrapProgram $out/bin/${pname} \
-      --prefix PATH : "${nix}/bin:${jre}/bin:${coreutils}/bin"
+      --prefix PATH : "${pkgs.lib.makeBinPath [ nix jre coreutils gawk ]}"
   '';
 }
