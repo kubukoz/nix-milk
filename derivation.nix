@@ -31,6 +31,6 @@ sbt.mkDerivation rec {
     cp -r target/universal/stage/lib $out
     cp target/universal/stage/bin/root $out/bin/${pname}
     wrapProgram $out/bin/${pname} \
-      --prefix PATH : "${pkgs.lib.makeBinPath [ nix jre coreutils gawk ]}"
+      --prefix PATH : "${lib.makeBinPath [ nix jre coreutils gawk ]}"
   '';
 }
