@@ -3,10 +3,7 @@
 sbt.mkDerivation rec {
   pname = "nix-milk";
   version = "0.1.0";
-  depsSha256 =
-    if stdenv.isDarwin
-    then "sha256-yoFpOYhOV1GRZ0IgGt3TiInz89NKupxYdSbPu1e5hI8="
-    else "sha256-yoFpOYhOV1GRZ0IgGt3TiInz89NKupxYdSbPu1e5hI8=";
+  depsSha256 = "sha256-yoFpOYhOV1GRZ0IgGt3TiInz89NKupxYdSbPu1e5hI8=";
 
   depsWarmupCommand = ''
     sbt compile
