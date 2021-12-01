@@ -6,10 +6,11 @@
   inputs.gitignore-source.inputs.nixpkgs.follows = "nixpkgs";
 
   outputs = { self, nixpkgs, flake-utils, sbt-derivation, ... }@inputs:
-    flake-utils.lib.eachSystem [ "x86_64-darwin" "x86_64-linux" ] (
-      system: let
+    flake-utils.lib.eachSystem [ "x86_64-darwin" "x86_64-linux" "aarch64-darwin" ] (
+      system:
+      let
         set-jdk = final: prev: rec {
-          jre = prev.graalvm11-ce;
+          jre = prev.openjdk11;
           jdk = jre;
         };
         pkgs = import nixpkgs {
@@ -17,12 +18,12 @@
           overlays = [ set-jdk sbt-derivation.overlay ];
         };
       in
-        {
-          defaultPackage = pkgs.callPackage ./derivation.nix { inherit (inputs) gitignore-source; };
-          checks = {
-            test-app =
-              pkgs.runCommandNoCC "tests" { buildInputs = [ (pkgs.callPackage ./derivation.nix { inherit (inputs) gitignore-source; }) ]; } "nix-milk test > $out";
-          };
-        }
+      {
+        defaultPackage = pkgs.callPackage ./derivation.nix { inherit (inputs) gitignore-source; };
+        checks = {
+          test-app =
+            pkgs.runCommandNoCC "tests" { buildInputs = [ (pkgs.callPackage ./derivation.nix { inherit (inputs) gitignore-source; }) ]; } "nix-milk test > $out";
+        };
+      }
     );
 }
