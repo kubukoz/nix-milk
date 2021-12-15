@@ -6,11 +6,18 @@ sbt.mkDerivation rec {
   depsSha256 = "sha256-cUJefDiT0BuPiM2Hw68PxwcawZ0OK8tUU40y3KumqXA=";
 
   depsWarmupCommand = ''
-    sbt compile
+    sbt Test/compile
   '';
 
   nativeBuildInputs = [ makeWrapper ];
 
+  overrideDepsAttrs = _: {
+    src = lib.sourceByRegex (gitignore-source.lib.gitignoreSource ./.) [
+      "^project\$"
+      "^project/.*\$"
+      "^build.sbt\$"
+    ];
+  };
   src = lib.sourceByRegex (gitignore-source.lib.gitignoreSource ./.) [
     "^project\$"
     "^project/.*\$"
