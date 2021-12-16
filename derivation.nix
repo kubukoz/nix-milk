@@ -1,7 +1,9 @@
 { jre, sbt, gitignore-source, makeWrapper, stdenv, lib, nix, coreutils, gawk }:
 
-sbt.mkDerivation rec {
-  pname = "nix-milk";
+let pname = "nix-milk"; in
+
+sbt.mkDerivation {
+  inherit pname;
   version = "0.1.0";
   depsSha256 = "sha256-cUJefDiT0BuPiM2Hw68PxwcawZ0OK8tUU40y3KumqXA=";
 
